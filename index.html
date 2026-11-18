@@ -1,0 +1,241 @@
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayText = document.getElementById("overlayText");
+const startBtn = document.getElementById("startBtn");
+
+canvas.width = 360;
+canvas.height = 600;
+
+const lanes = [90, 180, 270];
+
+let player;
+let enemies = [];
+let score = 0;
+let best = Number(localStorage.getItem("racingBest")) || 0;
+let speed = 5;
+let roadLine = 0;
+let spawnTimer = 0;
+let running = false;
+let animationId = null;
+
+bestText.textContent = best;
+
+// Menggambar mobil
+function drawCar(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x - 19, y - 30, 38, 60);
+
+    // Atap
+    ctx.fillStyle = "#222";
+    ctx.fillRect(x - 13, y - 18, 26, 36);
+
+    // Kaca
+    ctx.fillStyle = "#8bdcff";
+    ctx.fillRect(x - 12, y - 15, 24, 10);
+    ctx.fillRect(x - 12, y + 5, 24, 9);
+
+    // Lampu
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x - 16, y - 27, 7, 5);
+    ctx.fillRect(x + 9, y - 27, 7, 5);
+
+    // Roda
+    ctx.fillStyle = "#111";
+    ctx.fillRect(x - 22, y - 18, 4, 13);
+    ctx.fillRect(x + 18, y - 18, 4, 13);
+    ctx.fillRect(x - 22, y + 10, 4, 13);
+    ctx.fillRect(x + 18, y + 10, 4, 13);
+}
+
+// Menggambar jalan
+function drawRoad() {
+    ctx.fillStyle = "#202020";
+    ctx.fillRect(0, 0, 360, 600);
+
+    // Pembatas jalan
+    ctx.fillStyle = "#ff3030";
+    ctx.fillRect(5, 0, 5, 600);
+    ctx.fillRect(350, 0, 5, 600);
+
+    // Garis jalan
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([35, 25]);
+    ctx.lineDashOffset = -roadLine;
+
+    ctx.beginPath();
+    ctx.moveTo(135, 0);
+    ctx.lineTo(135, 600);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(225, 0);
+    ctx.lineTo(225, 600);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+
+    roadLine += speed;
+
+    if (roadLine > 60) {
+        roadLine = 0;
+    }
+}
+
+// Membuat mobil musuh
+function spawnEnemy() {
+    const lane = Math.floor(Math.random() * 3);
+
+    enemies.push({
+        x: lanes[lane],
+        y: -50,
+        color: ["#2196f3", "#f1c40f", "#9b59b6"][
+            Math.floor(Math.random() * 3)
+        ]
+    });
+}
+
+// Memulai permainan
+function startGame() {
+    if (animationId !== null) {
+        cancelAnimationFrame(animationId);
+    }
+
+    score = 0;
+    speed = 5;
+    roadLine = 0;
+    spawnTimer = 0;
+    enemies = [];
+
+    player = {
+        lane: 1,
+        x: lanes[1],
+        y: 510
+    };
+
+    scoreText.textContent = score;
+
+    running = true;
+    overlay.style.display = "none";
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+// Gerakan kiri
+function moveLeft() {
+    if (running && player.lane > 0) {
+        player.lane--;
+        player.x = lanes[player.lane];
+    }
+}
+
+// Gerakan kanan
+function moveRight() {
+    if (running && player.lane < 2) {
+        player.lane++;
+        player.x = lanes[player.lane];
+    }
+}
+
+// Deteksi tabrakan
+function checkCollision(enemy) {
+    return (
+        Math.abs(enemy.x - player.x) < 34 &&
+        Math.abs(enemy.y - player.y) < 48
+    );
+}
+
+// Sistem game
+function gameLoop() {
+    if (!running) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawRoad();
+
+    spawnTimer++;
+
+    if (spawnTimer > 65) {
+        spawnEnemy();
+        spawnTimer = 0;
+    }
+
+    // Gerakkan musuh
+    enemies.forEach(enemy => {
+        enemy.y += speed;
+        drawCar(enemy.x, enemy.y, enemy.color);
+
+        if (checkCollision(enemy)) {
+            endGame();
+        }
+    });
+
+    enemies = enemies.filter(enemy => enemy.y < 660);
+
+    if (!running) return;
+
+    // Gambar mobil pemain
+    drawCar(player.x, player.y, "#ff3030");
+
+    // Tambah skor
+    score++;
+    scoreText.textContent = score;
+
+    // Kecepatan bertambah
+    if (score % 500 === 0) {
+        speed += 0.5;
+    }
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+// Game over
+function endGame() {
+    running = false;
+
+    if (score > best) {
+        best = score;
+        localStorage.setItem("racingBest", best);
+        bestText.textContent = best;
+    }
+
+    overlay.style.display = "flex";
+    overlayTitle.textContent = "GAME OVER!";
+    overlayText.textContent = "Skor kamu: " + score;
+    startBtn.textContent = "PLAY AGAIN";
+}
+
+// Tombol start
+startBtn.addEventListener("click", startGame);
+
+// Tombol kontrol HP
+document.getElementById("leftBtn")
+    .addEventListener("pointerdown", moveLeft);
+
+document.getElementById("rightBtn")
+    .addEventListener("pointerdown", moveRight);
+
+// Kontrol keyboard
+document.addEventListener("keydown", function(event) {
+    if (
+        event.key === "ArrowLeft" ||
+        event.key.toLowerCase() === "a"
+    ) {
+        event.preventDefault();
+        moveLeft();
+    }
+
+    if (
+        event.key === "ArrowRight" ||
+        event.key.toLowerCase() === "d"
+    ) {
+        event.preventDefault();
+        moveRight();
+    }
+});
